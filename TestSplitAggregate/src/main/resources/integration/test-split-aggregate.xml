@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:int-http="http://www.springframework.org/schema/integration/http"
+	xmlns:task="http://www.springframework.org/schema/task"
+	xmlns:util="http://www.springframework.org/schema/util"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+		http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration.xsd
+		http://www.springframework.org/schema/integration/http http://www.springframework.org/schema/integration/http/spring-integration-http.xsd
+		http://www.springframework.org/schema/task http://www.springframework.org/schema/task/spring-task.xsd
+		http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd">
+
+	<util:list id="testSplitDestinations" value-type="java.lang.String">
+		<value>echo</value>
+		<value>inputDependent</value>
+	</util:list>
+	
+	<task:executor id="integrationExecutor" pool-size="20" />
+
+	<bean id="testRestTemplate"
+		class="org.springframework.web.client.RestTemplate">
+		<constructor-arg name="requestFactory">
+			<bean id="testClientHttpRequestFactory"
+				class="org.springframework.http.client.HttpComponentsClientHttpRequestFactory">
+				<property name="connectTimeout" value="10000" />
+				<property name="readTimeout" value="4000" />
+			</bean>
+		</constructor-arg>
+	</bean>
+	
+	<bean id="messagingTemplate" class="org.springframework.integration.core.MessagingTemplate">
+		<property name="receiveTimeout" value="60000" />
+	</bean>
+	
+	<int:channel id="replyChannel" />
+	
+	<!-- inbound gateway -->
+	<int:gateway id="testInboundGateway"
+		service-interface="com.test.splitAggregate.gateway.TestSplitAggregateGateway"
+		default-reply-timeout="600000" default-reply-channel="replyChannel">
+		<int:method name="processRequest" request-channel="splitChannel">
+			<int:header name="startTime" expression="new java.util.Date()" />
+		</int:method>
+		
+	</int:gateway>
+
+	<!-- split to 2 messages -->
+	<int:channel id="splitChannel" />
+	
+	<bean id="testSplitter" class="com.test.splitAggregate.messaging.split.TestSplitter">
+		<property name="testSplitDestinations" ref="testSplitDestinations" />
+	</bean>
+	
+	<int:splitter id="testMessageSplitter" 
+				  input-channel="splitChannel"
+				  output-channel="routerChannel"
+				  ref="testSplitter"
+				  method="splitMessage"> 
+	</int:splitter>
+	
+	<!-- route messages to 2 channels based on destination header -->
+	<int:publish-subscribe-channel id="routerChannel"  task-executor="integrationExecutor" />
+	
+	<int:header-value-router input-channel="routerChannel"
+							header-name="messageDestination">
+    	<int:mapping value="echo" channel="echoServiceActivatorRequestChannel" />
+    	<int:mapping value="inputDependent" channel="requestDependentExceptionThrowingServiceActivatorRequestChannel" />
+	</int:header-value-router>
+	
+	
+	<!-- Aggregate results from 2 channels -->
+	<int:channel id="aggregationChannel" />
+	
+	<!-- response dependent path ends -->
+	<bean id="messageStore" class="org.springframework.integration.store.SimpleMessageStore">
+    	<property name="messageGroupFactory">
+        	<bean class="org.springframework.integration.store.SimpleMessageGroupFactory">
+            	<constructor-arg value="BLOCKING_QUEUE"/>
+        	</bean>
+    	</property>
+	</bean>
+	
+	<bean id="releaseStrategy" class="com.test.splitAggregate.aggregate.release.TestReleaseStrategy">
+		<property name="testSplitDestinations" ref="testSplitDestinations" />
+	</bean>
+	
+	<bean id="aggregator" class="com.test.splitAggregate.aggregate.TestAggregator" />
+	
+	<int:aggregator input-channel="aggregationChannel"
+   					output-channel="replyChannel" 
+   					message-store="messageStore" 
+   					release-strategy="releaseStrategy"
+   					ref="aggregator"
+   					method="aggregate" 
+   					send-timeout="600000" />
+
+	<!-- echo path -->
+	<int:channel id="echoServiceActivatorRequestChannel" />
+	
+	<bean id="echoHttpService" 
+		  class="com.test.splitAggregate.messaging.split.service.TestSplitHttpRequestStringResponseMessageHandlingServiceImpl">
+		<property name="callingChannel" ref="echoOutboundHttpGatewayRequestChannel" />
+		<property name="messagingTemplate" ref="messagingTemplate" />
+	</bean>
+	
+	<int:service-activator ref="echoHttpService"
+						   input-channel="echoServiceActivatorRequestChannel"
+						   output-channel="aggregationChannel"
+						   method="handleSplitMessage" />	
+	
+	<int:channel id="echoOutboundHttpGatewayRequestChannel" />
+	
+	<int-http:outbound-gateway id="echoOutboundHttpGateway"
+							   url="http://localhost:8080/api/echo/{value}" 
+							   http-method="GET"
+							   rest-template="testRestTemplate" 
+							   request-channel="echoOutboundHttpGatewayRequestChannel"
+							   extract-request-payload="false"
+							   expected-response-type="java.lang.String">
+		<int-http:uri-variable name="value" expression="payload" />
+	</int-http:outbound-gateway>
+	
+	<!-- echo path ends -->
+	
+	<!-- response dependent path -->
+	<int:channel id="requestDependentExceptionThrowingServiceActivatorRequestChannel" />
+	
+	<bean id="requestDependentHttpService" 
+		  class="com.test.splitAggregate.messaging.split.service.TestSplitHttpRequestStringResponseMessageHandlingServiceImpl">
+		<property name="callingChannel" ref="requestDependentExceptionThrowingOutboundHttpGatewayRequestChannel" />
+		<property name="messagingTemplate" ref="messagingTemplate" />
+	</bean>
+	
+	<int:service-activator ref="requestDependentHttpService"
+						   input-channel="requestDependentExceptionThrowingServiceActivatorRequestChannel"
+						   output-channel="aggregationChannel"
+						   method="handleSplitMessage" />
+	
+	<int:channel id="requestDependentExceptionThrowingOutboundHttpGatewayRequestChannel" />
+	
+	<int-http:outbound-gateway id="requestDependentExceptionThrowingOutboundHttpGateway"
+							   url="http://localhost:8080/api/checkRequest/{value}" 
+							   http-method="GET"
+							   rest-template="testRestTemplate" 
+							   request-channel="requestDependentExceptionThrowingOutboundHttpGatewayRequestChannel"
+							   extract-request-payload="false"
+							   expected-response-type="java.lang.String">
+		<int-http:uri-variable name="value" expression="payload" />
+	</int-http:outbound-gateway>
+
+</beans>

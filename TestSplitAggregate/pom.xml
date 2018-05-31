@@ -23,6 +23,7 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<java.version>1.8</java.version>
+		<splitAggregate.common.version>0.0.1-SNAPSHOT</splitAggregate.common.version>
 	</properties>
 
 	<dependencies>
@@ -48,6 +49,12 @@
 		<dependency>
 			<groupId>org.apache.httpcomponents</groupId>
 			<artifactId>httpclient</artifactId>
+		</dependency>
+		
+		<dependency>
+			<groupId>com.test.splitAggregate</groupId>
+			<artifactId>common</artifactId>
+			<version>${splitAggregate.common.version}</version>
 		</dependency>
 
 		<dependency>

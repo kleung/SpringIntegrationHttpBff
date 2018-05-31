@@ -39,12 +39,12 @@
 	
 	<!-- inbound gateway -->
 	<int:gateway id="testInboundGateway"
-		service-interface="com.test.splitAggregate.gateway.TestSplitAggregateGateway"
-		default-reply-timeout="600000" default-reply-channel="replyChannel">
+				 service-interface="com.test.splitAggregate.gateway.TestSplitAggregateGateway"
+				 default-reply-timeout="600000" 
+				 default-reply-channel="replyChannel">
 		<int:method name="processRequest" request-channel="splitChannel">
 			<int:header name="startTime" expression="new java.util.Date()" />
 		</int:method>
-		
 	</int:gateway>
 
 	<!-- split to 2 messages -->

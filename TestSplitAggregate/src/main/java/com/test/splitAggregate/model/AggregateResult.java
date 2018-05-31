@@ -9,7 +9,7 @@ public class AggregateResult implements Serializable {
 	
 	protected String echoResult;
 	
-	protected String requestDependentResult;
+	protected String checkRequestResult;
 	
 	protected Date startTime;
 	
@@ -29,12 +29,12 @@ public class AggregateResult implements Serializable {
 		this.echoResult = echoResult;
 	}
 
-	public String getRequestDependentResult() {
-		return requestDependentResult;
+	public String getCheckRequestResult() {
+		return checkRequestResult;
 	}
 
-	public void setRequestDependentResult(String requestDependentResult) {
-		this.requestDependentResult = requestDependentResult;
+	public void setCheckRequestResult(String checkRequestResult) {
+		this.checkRequestResult = checkRequestResult;
 	}
 
 	public Date getStartTime() {

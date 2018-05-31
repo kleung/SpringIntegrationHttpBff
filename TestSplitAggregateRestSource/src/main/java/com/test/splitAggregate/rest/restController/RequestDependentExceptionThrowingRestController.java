@@ -28,7 +28,7 @@ public class RequestDependentExceptionThrowingRestController {
 			throw new TestException(e.getMessage(), e);
 		}
 		
-		return value;
+		return "Input checked OK, input was: " + value;
 	}
 
 }

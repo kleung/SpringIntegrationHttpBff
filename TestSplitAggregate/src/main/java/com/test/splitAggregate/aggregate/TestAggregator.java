@@ -35,7 +35,7 @@ public class TestAggregator {
 			if(destination.compareToIgnoreCase("echo") == 0) {
 				result.setEchoResult((String)message.getPayload());
 			} else if(destination.compareToIgnoreCase("inputDependent") == 0) {
-				result.setRequestDependentResult((String)message.getPayload());
+				result.setCheckRequestResult((String)message.getPayload());
 			}
 		}
 		
